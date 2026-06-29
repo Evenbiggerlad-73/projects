@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Professional skate sharpening services for hockey and figure skates.">
+  <title>Skate Sharpening</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a href="#" class="logo">Skate Sharpening</a>
+      <ul class="nav-links">
+        <li><a href="#services">Services</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <div class="hero">
+      <p class="eyebrow">Hockey &amp; Figure Skates</p>
+      <h1>Sharp edges. Better performance.</h1>
+      <p class="hero-text">
+        Professional skate sharpening with consistent hollows, clean edges, and quick turnaround.
+      </p>
+      <a href="#contact" class="btn btn-primary">Book a sharpening</a>
+    </div>
+  </header>
+
+  <main>
+    <section id="services" class="section">
+      <h2>Services</h2>
+      <div class="card-grid">
+        <article class="card">
+          <h3>Standard Sharpening</h3>
+          <p>Full sharpen with deburr and edge check for everyday play and practice.</p>
+        </article>
+        <article class="card">
+          <h3>Custom Hollow</h3>
+          <p>Choose your hollow depth — from 3/8" for grip to 5/8" for glide.</p>
+        </article>
+        <article class="card">
+          <h3>Figure Skate Care</h3>
+          <p>Precision sharpening for figure skates with attention to toe picks and edges.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="pricing" class="section section-alt">
+      <h2>Pricing</h2>
+      <ul class="pricing-list">
+        <li><span>Standard sharpen</span><span>$12</span></li>
+        <li><span>Custom hollow</span><span>$15</span></li>
+        <li><span>Figure skate sharpen</span><span>$18</span></li>
+        <li><span>Same-day rush</span><span>+$5</span></li>
+      </ul>
+    </section>
+
+    <section id="contact" class="section">
+      <h2>Contact</h2>
+      <p class="section-intro">Drop off your skates or send a message to schedule a sharpening.</p>
+      <form class="contact-form" id="contact-form">
+        <label>
+          Name
+          <input type="text" name="name" required>
+        </label>
+        <label>
+          Email
+          <input type="email" name="email" required>
+        </label>
+        <label>
+          Message
+          <textarea name="message" rows="4" required></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Send message</button>
+        <p class="form-note" id="form-note" hidden>Thanks! We'll get back to you soon.</p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; <span id="year"></span> Skate Sharpening. All rights reserved.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
