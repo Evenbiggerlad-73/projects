@@ -21,6 +21,19 @@ COLORS = {
 
 RESOURCE_TYPES = ["Sea", "Forest", "Hills", "Pasture", "Fields", "Mountains", "Gold", "Desert"]
 
+RESOURCE_ICONS = {
+    "Forest": "🌲",
+    "Hills": "⛰️",
+    "Pasture": "🐑",
+    "Fields": "🌾",
+    "Mountains": "🏔️",
+    "Gold": "💰",
+    "Desert": "🏜️",
+    "Sea": "🌊",
+    "Fog": "☁️",
+    "Unknown": "❓"
+}
+
 # --- Hex Math ---
 class Hex:
     def __init__(self, q, r):
@@ -96,6 +109,10 @@ class CatanGenerator:
         self.root = root
         self.root.title("Catan Seafarers Hidden Island Generator")
         
+        # Offset for dragging/panning grid - MUST be before setup_ui
+        self.offset_x = 400
+        self.offset_y = 300
+
         self.mode = "EDITOR" # EDITOR or PLAY
         self.selected_island_id = 1
         self.islands = {i: IslandGroup(i, f"Island {i}") for i in range(1, 4)}
@@ -103,7 +120,6 @@ class CatanGenerator:
         self.tiles = {} # (q, r) -> TileData
         
         self.setup_ui()
-        self.draw_grid_base()
 
     def setup_ui(self):
         # Main Layout: Left = Canvas, Right = Controls
@@ -125,9 +141,16 @@ class CatanGenerator:
         self.sidebar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Mode Toggle
-        self.mode_btn = tk.Button(self.sidebar, text="Switch to PLAY Mode", command=self.toggle_mode, bg="orange")
-        self.mode_btn.pack(fill=tk.X, pady=5)
+        mode_frame = tk.Frame(self.sidebar)
+        mode_frame.pack(fill=tk.X)
+        self.mode_btn = tk.Button(mode_frame, text="Switch to PLAY Mode", command=self.toggle_mode, bg="orange", width=20)
+        self.mode_btn.pack(side=tk.LEFT, pady=5)
         
+        # Manual Override Toggle
+        self.manual_var = tk.BooleanVar(value=False)
+        self.manual_cb = tk.Checkbutton(self.sidebar, text="Manual Placement", variable=self.manual_var)
+        self.manual_cb.pack(pady=2)
+
         # Island Management
         manage_frame = tk.LabelFrame(self.sidebar, text="Manage Island Groups")
         manage_frame.pack(fill=tk.X, pady=5)
@@ -145,6 +168,21 @@ class CatanGenerator:
         self.island_selector_frame.pack(fill=tk.X)
         self.island_var = tk.IntVar(value=1)
         self.update_island_selectors()
+
+        # Randomize Pool Buttons
+        rand_frame = tk.Frame(self.sidebar)
+        rand_frame.pack(fill=tk.X, pady=2)
+        tk.Button(rand_frame, text="Small", command=lambda: self.randomize_pool("small"), width=6).pack(side=tk.LEFT, padx=2)
+        tk.Button(rand_frame, text="Med", command=lambda: self.randomize_pool("med"), width=6).pack(side=tk.LEFT, padx=2)
+        tk.Button(rand_frame, text="Large", command=lambda: self.randomize_pool("large"), width=6).pack(side=tk.LEFT, padx=2)
+
+        # Custom Random Count
+        custom_frame = tk.Frame(self.sidebar)
+        custom_frame.pack(fill=tk.X, pady=2)
+        tk.Label(custom_frame, text="Custom:").pack(side=tk.LEFT)
+        self.custom_rand_var = tk.StringVar(value="5")
+        tk.Entry(custom_frame, textvariable=self.custom_rand_var, width=5).pack(side=tk.LEFT, padx=5)
+        tk.Button(custom_frame, text="Go", command=lambda: self.randomize_pool("custom"), width=4).pack(side=tk.LEFT)
             
         # Pool Configuration
         tk.Label(self.sidebar, text="--- Island Config ---", font=("Arial", 10, "bold")).pack(pady=(10, 0))
@@ -209,10 +247,6 @@ class CatanGenerator:
         # Initialize pools for island 1
         self.change_active_island()
 
-        # Offset for dragging/panning grid
-        self.offset_x = 400
-        self.offset_y = 300
-
     def update_island_selectors(self):
         for widget in self.island_selector_frame.winfo_children():
             widget.destroy()
@@ -230,6 +264,52 @@ class CatanGenerator:
         if new_id > 12: return # Limit to 12 islands for UI sanity
         self.islands[new_id] = IslandGroup(new_id, f"Island {new_id}")
         self.update_island_selectors()
+
+    def randomize_pool(self, size):
+        island = self.islands[self.selected_island_id]
+        island.tile_pool = []
+        island.number_pool = []
+        
+        # Calculate base hex count for this island
+        hex_count = sum(1 for t in self.tiles.values() if t.island_id == self.selected_island_id)
+        if hex_count == 0:
+            messagebox.showwarning("Warning", f"Place some hexes for Island {self.selected_island_id} first!")
+            return
+
+        if size == "small":
+            counts = hex_count
+        elif size == "med":
+            counts = hex_count + 4
+        elif size == "large":
+            counts = hex_count * 2
+        elif size == "custom":
+            try:
+                counts = int(self.custom_rand_var.get())
+            except ValueError:
+                messagebox.showerror("Error", "Invalid custom count")
+                return
+        
+        # Land distribution
+        land_types = [t for t in RESOURCE_TYPES if t not in ["Sea", "Desert"]]
+        for _ in range(counts - 1):
+            island.add_tile(random.choice(land_types))
+        
+        # Add Desert or another land
+        if random.random() > 0.3:
+            island.add_tile("Desert")
+        else:
+            island.add_tile(random.choice(land_types))
+        
+        # Numbers distribution (standard Catan-ish frequencies)
+        standard_nums = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]
+        
+        # We need as many numbers as there are land tiles (Desert and Sea don't get numbers)
+        # To be safe, we'll just fill the number pool to match the tile pool size (minus estimated deserts)
+        num_required = counts
+        for i in range(num_required):
+            island.add_number(standard_nums[i % len(standard_nums)])
+            
+        self.update_ui_counts()
 
     def remove_island_group(self):
         if len(self.islands) <= 1: return
@@ -375,13 +455,23 @@ class CatanGenerator:
             # Sample numbers from the pool
             num_sample = random.sample(island.number_pool, len(num_required_tiles))
 
-            # Smart Number Placement (Adjacency & Gold Rule)
-            if not self.place_numbers(num_required_tiles, num_sample):
-                messagebox.showwarning("Warning", f"Could not satisfy 6/8 rules for Island {island_id} perfectly. Placing randomly.")
-                # Fallback to random
-                random.shuffle(num_sample)
+            if self.manual_var.get():
+                # Order numbers by frequency (best first) for manual placement
+                # Frequencies: 6,8 > 5,9 > 4,10 > 3,11 > 2,12
+                def score(n):
+                    return {6:5, 8:5, 5:4, 9:4, 4:3, 10:3, 3:2, 11:2, 2:1, 12:1}.get(n, 0)
+                
+                num_sample.sort(key=score, reverse=True)
                 for i, tile in enumerate(num_required_tiles):
                     tile.number = num_sample[i]
+            else:
+                # Smart Number Placement (Adjacency & Gold Rule)
+                if not self.place_numbers(num_required_tiles, num_sample):
+                    messagebox.showwarning("Warning", f"Could not satisfy 6/8 rules for Island {island_id} perfectly. Placing randomly.")
+                    # Fallback to random
+                    random.shuffle(num_sample)
+                    for i, tile in enumerate(num_required_tiles):
+                        tile.number = num_sample[i]
                     
         return True
 
@@ -445,24 +535,26 @@ class CatanGenerator:
             x, y = hex_to_pixel(tile.q, tile.r, HEX_RADIUS)
             cx, cy = x + self.offset_x, y + self.offset_y
             
-            # Determine color
+            # Determine color and labels
             if self.mode == "EDITOR":
                 color = COLORS.get("Unknown")
                 text = f"I{tile.island_id}"
                 num_text = ""
+                # Draw small indicator of what island it belongs to
+                self.draw_hexagon(cx, cy, color, text, num_text, tile.island_id)
             else: # PLAY mode
                 if tile.revealed:
                     color = COLORS.get(tile.resource, COLORS["Unknown"])
                     text = tile.resource
                     num_text = str(tile.number) if tile.number else ""
+                    self.draw_hexagon(cx, cy, color, text, num_text)
                 else:
                     color = COLORS["Fog"]
                     text = "?"
                     num_text = ""
-            
-            self.draw_hexagon(cx, cy, color, text, num_text, tile.island_id if self.mode == "EDITOR" else None)
+                    self.draw_hexagon(cx, cy, color, text, num_text)
 
-    def draw_hexagon(self, x, y, color, label="", sub_label="", island_id=None):
+    def draw_hexagon(self, x, y, color, label="", sub_label="", island_id=None, is_background=False):
         points = []
         for i in range(6):
             angle_deg = 60 * i - 30 # Pointy top
@@ -470,28 +562,70 @@ class CatanGenerator:
             points.extend([x + HEX_RADIUS * math.cos(angle_rad),
                            y + HEX_RADIUS * math.sin(angle_rad)])
         
+        if is_background:
+            self.canvas.create_polygon(points, fill="#EBF5FB", outline="#AED6F1", width=1)
+            return
+
         outline = "black"
         width = 1
         if island_id:
             # Highlight border based on island ID
-            border_colors = {1: "red", 2: "blue", 3: "green"}
+            border_colors = {
+                1: "#FF0000", 2: "#0000FF", 3: "#008000", 
+                4: "#E67E22", 5: "#8E44AD", 6: "#1ABC9C",
+                7: "#2C3E50", 8: "#D35400", 9: "#7F8C8D",
+                10: "#C0392B", 11: "#27AE60", 12: "#2980B9"
+            }
             outline = border_colors.get(island_id, "black")
             width = 3
             
         self.canvas.create_polygon(points, fill=color, outline=outline, width=width)
         
-        if label:
-            # Main label (Resource)
-            font_size = 8 if len(label) > 6 else 10
-            self.canvas.create_text(x, y - 5, text=label, font=("Arial", font_size, "bold"), fill="black" if color != COLORS["Mountains"] else "white")
+        if label == "?":
+            # Fog representation
+            self.canvas.create_text(x, y, text=RESOURCE_ICONS["Fog"], font=("Arial", 24))
+        elif label:
+            icon = RESOURCE_ICONS.get(label)
+            if icon:
+                # Draw Icon
+                icon_y = y - 10 if sub_label else y
+                self.canvas.create_text(x, icon_y, text=icon, font=("Arial", 22))
+                
+                # In Editor mode or for Sea/Desert, the resource name might be useful if no icon or alongside it
+                if self.mode == "EDITOR" or label in ["Sea", "Desert"]:
+                    # Small text for resource name if it's Sea/Desert or we're in editor
+                    text_y = y + 15 if label in ["Sea", "Desert"] else y + 5
+                    # ... but in Editor we show island ID instead
+                    if self.mode == "EDITOR":
+                        self.canvas.create_text(x, y + 15, text=label, font=("Arial", 7), fill="black")
+            else:
+                # Fallback for island ID labels in Editor
+                self.canvas.create_text(x, y, text=label, font=("Arial", 10, "bold"))
+
         if sub_label:
-            # Number label
+            # Catan-style number tokens
+            r = 12
+            self.canvas.create_oval(x-r, y+18-r, x+r, y+18+r, fill="white", outline="black")
             fill = "red" if sub_label in ["6", "8"] else "black"
-            self.canvas.create_text(x, y + 12, text=sub_label, font=("Arial", 12, "bold"), fill=fill)
+            self.canvas.create_text(x, y+18, text=sub_label, font=("Arial", 9, "bold"), fill=fill)
 
     def draw_grid_base(self):
-        # Optional: draw a faint grid of hints where hexes can be placed
-        pass
+        # Draw a background grid of ocean tiles to show spacing
+        # Covers a wide area (approx 25x20 hexes)
+        for q in range(-15, 16):
+            for r in range(-15, 16):
+                if abs(q + r) > 20: continue
+                
+                # Skip if a real tile is already there
+                if (q, r) in self.tiles:
+                    continue
+                
+                x, y = hex_to_pixel(q, r, HEX_RADIUS)
+                cx, cy = x + self.offset_x, y + self.offset_y
+                
+                # Only draw if roughly within canvas bounds to save performance
+                if -HEX_RADIUS < cx < 1000 and -HEX_RADIUS < cy < 800:
+                    self.draw_hexagon(cx, cy, "", is_background=True)
 
 if __name__ == "__main__":
     root = tk.Tk()
